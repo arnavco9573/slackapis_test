@@ -1,0 +1,20 @@
+Testing GET https://motivated-nature-ea4be5c747.strapiapp.com/api/blogs...
+Status: 401 Unauthorized
+Body: {"data":null,"error":{"status":401,"name":"UnauthorizedError","message":"Missing or invalid credentials","details":{}}}
+---
+Testing POST https://motivated-nature-ea4be5c747.strapiapp.com/api/blogs...
+Status: 401 Unauthorized
+Body: {"data":null,"error":{"status":401,"name":"UnauthorizedError","message":"Missing or invalid credentials","details":{}}}
+---
+Testing GET https://motivated-nature-ea4be5c747.strapiapp.com/api/blog...
+Status: 404 Not Found
+Body: {"data":null,"error":{"status":404,"name":"NotFoundError","message":"Not Found","details":{}}}
+---
+Testing POST https://motivated-nature-ea4be5c747.strapiapp.com/api/blog...
+Status: 405 Method Not Allowed
+Body: Method Not Allowed
+---
+Testing GET https://motivated-nature-ea4be5c747.strapiapp.com/api/users...
+Status: 401 Unauthorized
+Body: {"data":null,"error":{"status":401,"name":"UnauthorizedError","message":"Missing or invalid credentials","details":{}}}
+---
