@@ -1,17 +1,7 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { primaryFont } from '@/lib/fonts/fonts';
 import "./globals.css";
 import Providers from "./providers";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "Master Hub",
@@ -31,7 +21,7 @@ export default function RootLayout({
       </head>
       <body
         data-theme="dark"
-        className={`${geistSans.variable} ${geistMono.variable} bg-background text-cta-text font-primary antialiased`}
+        className={`${primaryFont.variable} bg-background text-cta-text font-primary antialiased`}
       >
         <Providers>
 

@@ -37,118 +37,9 @@ export async function signInWithEmailAction(email: string) {
 
 import { createClientServer } from "@/lib/supabase/server";
 
-/**
- * Create a CometChat user via REST API (Server-side only)
- * @param uid - The unique identifier (master_profile.id)
- * @param email - User's email
- */
-async function createCometChatUser(uid: string, email: string) {
-    try {
-        console.log("🚀 Creating CometChat user with UID:", uid, "Email:", email);
 
-        const appId = process.env.NEXT_PUBLIC_COMETCHAT_APP_ID;
-        const region = process.env.NEXT_PUBLIC_COMETCHAT_REGION;
-        const apiKey = process.env.COMETCHAT_API_KEY; // This should be server-side only (not NEXT_PUBLIC)
 
-        if (!appId || !region || !apiKey) {
-            throw new Error("CometChat credentials missing");
-        }
 
-        const response = await fetch(
-            `https://${appId}.api-${region}.cometchat.io/v3/users`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "appId": appId,
-                    "apiKey": apiKey,
-                },
-                body: JSON.stringify({
-                    uid: uid,
-                    name: email.split('@')[0], // Use email prefix as name
-                    email: email,
-                }),
-            }
-        );
-
-        if (!response.ok) {
-            const error = await response.json();
-            // If user already exists, that's fine
-            if (error.error?.code === "ERR_UID_ALREADY_EXISTS" || response.status === 409) {
-                console.log("ℹ️ CometChat user already exists:", uid);
-                return { success: true, alreadyExists: true };
-            }
-            console.error("❌ CometChat user creation failed:", error);
-            return { error: error.message || "User creation failed" };
-        }
-
-        const data = await response.json();
-        console.log("✅ CometChat user created successfully:", {
-            uid: data.data?.uid,
-            name: data.data?.name,
-            email: data.data?.email
-        });
-        return { success: true };
-    } catch (error: any) {
-        console.error("❌ Error creating CometChat user:", error);
-        return { error: error.message };
-    }
-}
-
-/**
- * Create a SendBird user via REST API (Server-side only)
- * @param uid - The unique identifier (email prefix or master_profile.id)
- * @param email - User's email
- */
-async function createSendbirdUser(uid: string, email: string) {
-    try {
-        console.log("🚀 Creating SendBird user with UID:", uid, "Email:", email);
-
-        const appId = process.env.NEXT_PUBLIC_SENDBIRD_APP_ID;
-        const apiToken = process.env.SENDBIRD_API_TOKEN; // Server-side only
-
-        if (!appId || !apiToken) {
-            throw new Error("SendBird credentials missing");
-        }
-
-        const response = await fetch(
-            `https://api-${appId}.sendbird.com/v3/users`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Api-Token": apiToken,
-                },
-                body: JSON.stringify({
-                    user_id: uid,
-                    nickname: email.split('@')[0],
-                    profile_url: "", // Optional: Add default avatar
-                }),
-            }
-        );
-
-        if (!response.ok) {
-            const error = await response.json();
-            // If user already exists, that's fine
-            if (error.code === 400202) { // User ID already exists
-                console.log("ℹ️ SendBird user already exists:", uid);
-                return { success: true, alreadyExists: true };
-            }
-            console.error("❌ SendBird user creation failed:", error);
-            return { error: error.message || "User creation failed" };
-        }
-
-        const data = await response.json();
-        console.log("✅ SendBird user created successfully:", {
-            user_id: data.user_id,
-            nickname: data.nickname,
-        });
-        return { success: true };
-    } catch (error: any) {
-        console.error("❌ Error creating SendBird user:", error);
-        return { error: error.message };
-    }
-}
 
 export async function verifyOtpAction(email: string, otp: string) {
     try {
@@ -223,34 +114,7 @@ export async function verifyOtpAction(email: string, otp: string) {
             console.error("Failed to create/update user record:", userInsertError);
         }
 
-        // 4. Create CometChat user via REST API (server-side only)
-        // Client-side login will happen after redirect
-        if (masterProfileId) {
-            // Use email prefix as UID for simpler identification
-            // Or use masterProfileId if you prefer UUID
-            const cometChatUid = email.split('@')[0]; // Simple UID based on email
 
-            console.log("📱 Creating CometChat user:", { uid: cometChatUid, masterProfileId });
-            const cometChatResult = await createCometChatUser(cometChatUid, email);
-            if (cometChatResult.error) {
-                console.error("⚠️ CometChat user creation warning:", cometChatResult.error);
-                // Continue with success even if CometChat fails
-            } else {
-                console.log("✅ CometChat user created/verified successfully");
-            }
-
-            // 5. Create SendBird user via REST API (server-side only)
-            console.log("📱 Creating SendBird user:", { uid: cometChatUid, masterProfileId });
-            const sendbirdResult = await createSendbirdUser(cometChatUid, email);
-            if (sendbirdResult.error) {
-                console.error("⚠️ SendBird user creation warning:", sendbirdResult.error);
-                // Continue with success even if SendBird fails
-            } else {
-                console.log("✅ SendBird user created/verified successfully");
-            }
-
-            return { success: true, masterProfileId, cometChatUid, sendbirdUid: cometChatUid };
-        }
 
         return { success: true, masterProfileId };
     } catch (e) {

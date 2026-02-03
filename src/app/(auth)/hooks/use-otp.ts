@@ -26,32 +26,8 @@ export function useOtp() {
                 return;
             }
 
-            // Success - Now login to CometChat
-            console.log("✅ OTP verified, logging into CometChat...");
-
-            // Persist user details for other components (like SendBird)
+            // Persist user details
             if (email) localStorage.setItem('userEmail', email);
-            if (res.sendbirdUid) localStorage.setItem('sendbirdUid', res.sendbirdUid);
-
-            if (res.cometChatUid) {
-                try {
-                    const { CometChatUIKit } = await import("@cometchat/chat-uikit-react");
-                    const loggedInUser = await CometChatUIKit.getLoggedinUser();
-
-                    if (!loggedInUser) {
-                        const user = await CometChatUIKit.login(res.cometChatUid);
-                        console.log("✅ CometChat Login Successful:", {
-                            uid: user.getUid(),
-                            name: user.getName(),
-                        });
-                    } else {
-                        console.log("ℹ️ Already logged into CometChat");
-                    }
-                } catch (cometError: any) {
-                    console.error("⚠️ CometChat login warning:", cometError);
-                    // Continue to dashboard even if CometChat fails
-                }
-            }
 
             console.log("Redirecting to dashboard...");
             router.push('/dashboard');
