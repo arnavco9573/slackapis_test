@@ -34,6 +34,8 @@ interface InputFieldProps {
   startAdornment?: React.ReactNode;
   readOnly?: boolean;
   pattern?: string;
+  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
+  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
 }
 
 const InputField = React.forwardRef<HTMLInputElement, InputFieldProps>(
@@ -133,8 +135,14 @@ const InputField = React.forwardRef<HTMLInputElement, InputFieldProps>(
               defaultValue={props.defaultValue}
               readOnly={props.readOnly}
               onChange={handleExtensionChange}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
+              onFocus={(e) => {
+                setIsFocused(true);
+                props.onFocus?.(e);
+              }}
+              onBlur={(e) => {
+                setIsFocused(false);
+                props.onBlur?.(e);
+              }}
               maxLength={props.maxLength}
               minLength={props.minLength}
               disabled={props.disabled}

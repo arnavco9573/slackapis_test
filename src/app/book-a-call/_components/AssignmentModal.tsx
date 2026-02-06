@@ -1,8 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format, isSameHour, addHours } from 'date-fns'
 import { X } from 'lucide-react'
 import Image from 'next/image'
-import NextImage from 'next/image'
 import { AnimatePresence, motion } from 'motion/react'
 import Button from '@/components/core/button'
 import ArrowSvg from '@/components/svg/arrow'
@@ -39,14 +38,16 @@ type TeamSchedule = {
 type AssignmentModalProps = {
     isOpen: boolean
     onClose: () => void
-    slotTime: string | null // ISO String
+    slotTime: string | null
     teamMembers: TeamSchedule[]
     onAssign: (memberId: string, memberName: string) => void
     isAssigning: boolean
     prioritySlots?: any[]
     onSlotSelect?: (time: string) => void
     isLoading?: boolean
-    isEditMode?: boolean // When true, hides priority slots (for editing scheduled bookings)
+    isEditMode?: boolean
+    initialSelectedMember?: TeamSchedule | null
+    timezone?: string
 }
 
 export default function AssignmentModal({
@@ -59,12 +60,62 @@ export default function AssignmentModal({
     prioritySlots = [],
     onSlotSelect,
     isLoading = false,
-    isEditMode = false
+    isEditMode = false,
+    initialSelectedMember = null,
+    timezone = 'UTC'
 }: AssignmentModalProps) {
     const [confirmingMember, setConfirmingMember] = useState<TeamSchedule | null>(null)
 
+    useEffect(() => {
+        if (isOpen && initialSelectedMember) {
+            // Find the matching member in teamMembers to get full data (including events)
+            const searchId = initialSelectedMember.id
+            const searchEmail = (initialSelectedMember as any).workspace_email || initialSelectedMember.email
+
+            const fullMember = teamMembers.find(m =>
+                (searchId && m.id === searchId) ||
+                (searchEmail && (m.email === searchEmail || (m as any).workspace_email === searchEmail))
+            )
+
+            if (fullMember) {
+                setConfirmingMember(fullMember)
+            } else {
+                setConfirmingMember(initialSelectedMember)
+            }
+        } else if (!isOpen) {
+            setConfirmingMember(null)
+        }
+    }, [isOpen, initialSelectedMember, teamMembers])
+
     if (!isOpen || !slotTime) return null
 
+    // Timezone-aware formatting helper
+    const formatInTZ = (date: Date | string, formatStr: string) => {
+        const d = typeof date === 'string' ? new Date(date) : date
+        return new Intl.DateTimeFormat('en-GB', {
+            timeZone: timezone,
+            hour: formatStr.includes('h') ? '2-digit' : undefined,
+            minute: formatStr.includes('m') ? '2-digit' : undefined,
+            day: formatStr.includes('d') ? '2-digit' : undefined,
+            month: formatStr.includes('MMM') ? 'short' : (formatStr.includes('MM') ? '2-digit' : undefined),
+            year: formatStr.includes('yyyy') ? 'numeric' : undefined,
+            weekday: formatStr.includes('EEE') ? 'short' : (formatStr.includes('EEEE') ? 'long' : undefined),
+            hour12: true
+        }).format(d)
+    }
+
+    const getTZParts = (date: Date | string) => {
+        const d = typeof date === 'string' ? new Date(date) : date
+        const parts = new Intl.DateTimeFormat('en-GB', {
+            timeZone: timezone,
+            hour: 'numeric',
+            minute: 'numeric',
+            hour12: false
+        }).formatToParts(d)
+        const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0')
+        const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0')
+        return { hour, minute }
+    }
 
     const slotDate = new Date(slotTime)
 
@@ -74,7 +125,13 @@ export default function AssignmentModal({
         const hasConflict = member.events.some(event => {
             if (!event.start.dateTime) return false
             const eventStart = new Date(event.start.dateTime)
-            return isSameHour(eventStart, slotDate)
+
+            const evtDay = formatInTZ(eventStart, 'd MMM yyyy')
+            const slotDay = formatInTZ(slotDate, 'd MMM yyyy')
+            const { hour: evtHour } = getTZParts(eventStart)
+            const { hour: slotHour } = getTZParts(slotDate)
+
+            return evtDay === slotDay && evtHour === slotHour
         })
         return !hasConflict
     }
@@ -154,7 +211,7 @@ export default function AssignmentModal({
                             <div className="flex items-center gap-3">
                                 <div className="shrink-0">
                                     {confirmingMember.profile_picture ? (
-                                        <NextImage
+                                        <Image
                                             src={confirmingMember.profile_picture}
                                             alt={confirmingMember.name}
                                             width={40}
@@ -176,7 +233,7 @@ export default function AssignmentModal({
                                 </div>
                             </div>
                             <div className="w-5 h-5 bg-[#333] rounded-[4px] flex items-center justify-center border border-[#444]">
-                                <NextImage src="/icons/check.svg" alt="check" width={12} height={12} className="hidden" />
+                                <Image src="/icons/check.svg" alt="check" width={12} height={12} className="hidden" />
                                 <CheckIcon />
                             </div>
                         </div>
@@ -244,7 +301,7 @@ export default function AssignmentModal({
                                                     {label}:
                                                 </span>
                                                 <span className={`text-[10px] font-medium ${isSelected ? 'text-white' : 'text-gray-500'}`}>
-                                                    {format(start, 'h a')} - {format(end, 'h a')}
+                                                    {formatInTZ(start, 'h a')} - {formatInTZ(end, 'h a')}
                                                 </span>
                                             </button>
                                         )

@@ -7,7 +7,9 @@ import ColorPickerSvg from '@/components/svg/color-picker'
 import Button from '@/components/core/button'
 import { useSyncStore } from '../../stores/useSyncStore'
 import { updateTeamColorsBatch } from '../../actions/updateTeamColorsBatch'
+import { saveMasterSyncConfig } from '../../actions/saveMasterSyncConfig'
 import { toast } from 'sonner'
+import ArrowSvg from '@/components/svg/arrow'
 
 // Preset colors for the picker
 const PRESET_COLORS = [
@@ -16,6 +18,7 @@ const PRESET_COLORS = [
 ]
 
 interface StepColorProps {
+    masterId: string
     onComplete: () => void
 }
 
@@ -34,8 +37,8 @@ const hexToRgba = (hex: string, alpha: number) => {
     return `rgba(${r},${g},${b},${alpha})`;
 }
 
-export default function StepColor({ onComplete }: StepColorProps) {
-    const { members, setMembers, isLoading, setLoading } = useSyncStore()
+export default function StepColor({ masterId, onComplete }: StepColorProps) {
+    const { members, setMembers, isLoading, setLoading, timezone, availability } = useSyncStore()
     const [activeId, setActiveId] = React.useState<string | null>(null)
 
     const updateMemberColor = (id: string, color: string) => {
@@ -46,6 +49,15 @@ export default function StepColor({ onComplete }: StepColorProps) {
     const handleSaveColors = async () => {
         setLoading(true)
         try {
+            // 1. Save Master Config (Timezone & Availability)
+            const masterResult = await saveMasterSyncConfig(masterId, timezone, availability)
+            if (!masterResult.success) {
+                toast.error("Failed to save master settings")
+                setLoading(false)
+                return
+            }
+
+            // 2. Save Team Colors
             const updates = members.map(m => ({
                 id: m.id,
                 color: m.color || PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]
@@ -59,14 +71,14 @@ export default function StepColor({ onComplete }: StepColorProps) {
                 toast.error("Failed to save colors")
             }
         } catch (error) {
-            toast.error("Error saving colors")
+            toast.error("Error saving configuration")
         } finally {
             setLoading(false)
         }
     }
 
     return (
-        <div className="flex flex-col h-full bg-card section-border rounded-xl overflow-hidden max-w-[550px] w-full max-h-[570px] p-6">
+        <div className="flex flex-col h-full bg-card section-border rounded-xl overflow-hidden max-w-[550px] w-full max-h-[570px] p-6 mt-29">
             <h2 className="text-xl font-medium text-white mb-2">Assign Colors</h2>
             <p className="text-sm text-gray-500 mb-6">
                 Assign a unique color to each member for the calendar view.
@@ -143,8 +155,8 @@ export default function StepColor({ onComplete }: StepColorProps) {
             </div>
 
             <div className="mt-6 pt-4 border-t border-[#262626] flex justify-end">
-                <Button onClick={handleSaveColors} disabled={isLoading}>
-                    {isLoading ? <Loader2 className="animate-spin" /> : 'Finish Setup'}
+                <Button onClick={handleSaveColors} disabled={isLoading} className='w-full'>
+                    {isLoading ? <Loader2 className="animate-spin" /> : <>Add Calendars <ArrowSvg className='size-4' /></>}
                 </Button>
             </div>
         </div>

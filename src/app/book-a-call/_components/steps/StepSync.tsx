@@ -22,7 +22,7 @@ export default function StepSync({ masterId }: StepSyncProps) {
             const result = await syncTeamMembers(masterId)
             if (result.success && result.members) {
                 setMembers(result.members)
-                setStep('review')
+                setStep('timezone')
                 toast.success(`Found ${result.count} team members!`)
             } else {
                 toast.error(result.message || "Failed to sync")

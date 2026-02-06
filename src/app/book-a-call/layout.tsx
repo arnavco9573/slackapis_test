@@ -13,6 +13,8 @@ export default async function CommunicationLayout({
     // Server-side check
     const { success, exists, masterId } = await checkTeamMembersExist()
 
+    // const showOverlay = true;
+
     const showOverlay = !exists || !success
 
     return (

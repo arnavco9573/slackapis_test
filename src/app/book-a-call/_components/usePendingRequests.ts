@@ -17,7 +17,7 @@ export const usePendingRequests = () => {
             // Assuming your master_profiles table uses 'email' to link, or 'id' matches auth.uid()
             const { data: master } = await supabase
                 .from('master_profiles')
-                .select('id')
+                .select('id, timezone, availability')
                 .eq('email', user.email)
                 .single()
 
@@ -51,7 +51,7 @@ export const usePendingRequests = () => {
             }
 
             // Return requests AND masterId (useful for other components)
-            return { requests, masterId: master.id }
+            return { requests, masterId: master.id, timezone: master.timezone, availability: master.availability }
         }
     })
 }

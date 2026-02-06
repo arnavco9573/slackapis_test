@@ -23,6 +23,8 @@ export async function assignBooking(
 
         if (bookingError || !booking) throw new Error("Booking not found")
 
+        const attendeeEmail = booking.calendar_email || booking.wl_partners?.email;
+
         // 2. Prepare Google Auth Key
         let rawKey = process.env.GOOGLE_PRIVATE_KEY!;
         const cleanBody = rawKey
@@ -126,7 +128,7 @@ export async function assignBooking(
             end: { dateTime: endTime.toISOString() },
             attendees: [
                 { email: teamMember.workspace_email },
-                { email: booking.wl_partners.email }
+                { email: attendeeEmail }
             ],
             conferenceData: {
                 createRequest: {

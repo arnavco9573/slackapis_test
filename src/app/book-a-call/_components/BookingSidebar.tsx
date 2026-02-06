@@ -22,17 +22,21 @@ import { motion, AnimatePresence } from 'framer-motion' // Changed from 'motion/
 import { cn } from '@/lib/utils'
 import ArrowSvg from '@/components/svg/arrow'
 import Image from 'next/image'
+import TimeZoneEditPopover from './TimeZoneEditPopover'
 
 interface BookingSidebarProps {
     bookings: any[]
     onSelectBooking: (id: string) => void
     selectedRequestId: string | null
     onEditBooking?: (slotTime: string) => void
+    masterId?: string
+    timezone?: string
+    availability?: any
 }
 
 type Tab = 'Request' | 'Scheduled' | 'Concluded' | 'Rejected'
 
-export default function BookingSidebar({ bookings, onSelectBooking, selectedRequestId, onEditBooking }: BookingSidebarProps) {
+export default function BookingSidebar({ bookings, onSelectBooking, selectedRequestId, onEditBooking, masterId, timezone, availability }: BookingSidebarProps) {
     const router = useRouter()
     const [activeTab, setActiveTab] = useState<Tab>('Request')
     const [search, setSearch] = useState('')
@@ -58,6 +62,40 @@ export default function BookingSidebar({ bookings, onSelectBooking, selectedRequ
             },
             onError: (err) => toast.error("Failed to cancel: " + err.message)
         })
+    }
+
+    // Helper to format date in master's timezone
+    const formatInTZ = (dateString: string | Date, formatStr: string) => {
+        if (!dateString) return ''
+        const date = typeof dateString === 'string' ? new Date(dateString) : dateString
+
+        // If no timezone is set, fallback to local formatting
+        if (!timezone) return format(date, formatStr)
+
+        try {
+            // Mapping common format strings to Intl options
+            const options: Intl.DateTimeFormatOptions = { timeZone: timezone }
+
+            if (formatStr === 'h:mm a' || formatStr === 'h a') {
+                options.hour = 'numeric'
+                if (formatStr === 'h:mm a') options.minute = 'numeric'
+                options.hour12 = true
+            } else if (formatStr === 'd MMM yyyy, EEE') {
+                options.day = 'numeric'
+                options.month = 'short'
+                options.year = 'numeric'
+                options.weekday = 'short'
+            } else if (formatStr === 'd MMM yyyy') {
+                options.day = 'numeric'
+                options.month = 'short'
+                options.year = 'numeric'
+            }
+
+            return new Intl.DateTimeFormat('en-GB', options).format(date)
+        } catch (e) {
+            console.error("TZ Formatting error:", e)
+            return format(date, formatStr)
+        }
     }
 
     // Group bookings by request_group_id
@@ -105,8 +143,15 @@ export default function BookingSidebar({ bookings, onSelectBooking, selectedRequ
     return (
         <div className="w-[400px] shrink-0 bg-card flex flex-col p-4 h-full mt-4">
             <div className="flex flex-col gap-4">
-                <div>
-                    <h1 className="text-2xl font-normal text-white mb-2 ">Call Request</h1>
+                <div className="flex items-center justify-between mb-2">
+                    <h1 className="text-2xl font-normal text-white">Call Request</h1>
+                    {masterId && (
+                        <TimeZoneEditPopover
+                            masterId={masterId}
+                            initialTimezone={timezone}
+                            initialAvailability={availability}
+                        />
+                    )}
                 </div>
 
                 <div className="flex items-center gap-6 text-sm font-medium overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] py-10 -my-6 px-2">
@@ -114,7 +159,7 @@ export default function BookingSidebar({ bookings, onSelectBooking, selectedRequ
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab as Tab)}
-                            className={`relative pb-3 transition-colors whitespace-nowrap gap-3 ${activeTab === tab ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                            className={`relative pb-3 transition-colors whitespace-nowrap gap-3 ${activeTab === tab ? 'text-white' : 'text-[#636363] hover:text-[#636363]'
                                 }`}
                         >
                             <span className="relative z-10">{tab}</span>
@@ -143,8 +188,8 @@ export default function BookingSidebar({ bookings, onSelectBooking, selectedRequ
                         placeholder="Search"
                         value={search}
                         onChange={(e: any) => setSearch(e.target.value)}
-                        startAdornment={<SearchSvg className="text-gray-500 size-5" />}
-                        inputClassName="h-10 text-sm pl-10 justify-center"
+                        startAdornment={<SearchSvg className="text-[#636363] size-5" />}
+                        inputClassName="h-10 text-sm pl-10 justify-center !items-center !text-[#636363]"
                     />
                 </div>
             </div>
@@ -173,6 +218,7 @@ export default function BookingSidebar({ bookings, onSelectBooking, selectedRequ
                                 onCancel={() => handleOpenCancelModal(groupId, getGroupStatus(group) === 'scheduled' ? 'Scheduled' : 'Request')}
                                 isCancelling={isCancelling && itemToCancel?.id === groupId}
                                 onEdit={onEditBooking}
+                                formatInTZ={formatInTZ}
                             />
                         )
                     })
@@ -202,7 +248,7 @@ function getGroupStatus(group: any[]) {
     return 'requested'
 }
 
-function BookingCard({ group, type, isSelected, onClick, router, onCancel, isCancelling, onEdit }: {
+function BookingCard({ group, type, isSelected, onClick, router, onCancel, isCancelling, onEdit, formatInTZ }: {
     group: any[],
     type: Tab,
     isSelected: boolean,
@@ -210,7 +256,8 @@ function BookingCard({ group, type, isSelected, onClick, router, onCancel, isCan
     router: any,
     onCancel?: () => void,
     isCancelling?: boolean,
-    onEdit?: (time: string) => void
+    onEdit?: (event: any) => void,
+    formatInTZ: (date: any, format: string) => string
 }) {
     // Info from first item
     const primary = group[0]
@@ -239,12 +286,12 @@ function BookingCard({ group, type, isSelected, onClick, router, onCancel, isCan
         const days: Record<string, any[]> = {}
         sortedSlots.forEach(slot => {
             const d = new Date(slot.requested_start_time)
-            const key = format(d, 'd MMM yyyy, EEE')
+            const key = formatInTZ(d, 'd MMM yyyy, EEE')
             if (!days[key]) days[key] = []
             days[key].push(slot)
         })
         return days
-    }, [sortedSlots])
+    }, [sortedSlots, formatInTZ])
 
     const getPriorityLabel = (p: number) => {
         const map = ['First', 'Second', 'Third', 'Fourth', 'Fifth']
@@ -290,7 +337,7 @@ function BookingCard({ group, type, isSelected, onClick, router, onCancel, isCan
         // Default Request Badge
         return (
             <ChipFilled className='text-[#888]'>
-                {format(createdDate, 'd MMM yyyy')}
+                {formatInTZ(createdDate, 'd MMM yyyy')}
             </ChipFilled>
         )
     }
@@ -303,15 +350,15 @@ function BookingCard({ group, type, isSelected, onClick, router, onCancel, isCan
                 onClick()
             }}
             className={cn(
-                "flex flex-col gap-3 bg-neutral-05 p-4 rounded-[8px] transition-colors cursor-pointer group hover:border-[#333] relative overflow-hidden",
-                isSelected && "border border-[#333]"
+                "flex flex-col gap-3 p-4 rounded-[8px] transition-colors cursor-pointer group hover:border-[#333] relative overflow-hidden",
+                isSelected ? "bg-neutral-05 border border-[#333]" : "bg-neutral-03"
             )}
         >
             {/* Header: Date Pill or Status Badge */}
             <div className="flex items-center justify-between">
                 {renderBadge()}
                 {(type === 'Rejected' || type === 'Scheduled' || type === 'Concluded') && (
-                    <span className="text-xs text-text-low">{format(createdDate, 'd MMM yyyy')}</span>
+                    <span className="text-xs text-(--Primary-600)">{formatInTZ(createdDate, 'd MMM yyyy')}</span>
                 )}
             </div>
 
@@ -437,7 +484,7 @@ function BookingCard({ group, type, isSelected, onClick, router, onCancel, isCan
                                             <CalendarSvg className="text-[#888]" /> Date
                                         </div>
                                         <div className="pl-6 text-white text-sm">
-                                            {format(new Date(primary.requested_start_time), 'd MMM yyyy')}
+                                            {formatInTZ(primary.requested_start_time, 'd MMM yyyy')}
                                         </div>
                                     </div>
 
@@ -446,7 +493,7 @@ function BookingCard({ group, type, isSelected, onClick, router, onCancel, isCan
                                             <ClockSvg className="text-[#888]" /> Time
                                         </div>
                                         <div className="pl-6 text-white text-sm">
-                                            {format(new Date(primary.requested_start_time), 'h a')} - {format(new Date(new Date(primary.requested_start_time).getTime() + 60 * 60000), 'h a')}
+                                            {formatInTZ(primary.requested_start_time, 'h a')} - {formatInTZ(new Date(new Date(primary.requested_start_time).getTime() + 60 * 60000), 'h a')}
                                         </div>
                                     </div>
 
@@ -484,7 +531,7 @@ function BookingCard({ group, type, isSelected, onClick, router, onCancel, isCan
                                                                 {slot.priority_level ? getPriorityLabel(slot.priority_level) : 'Time:'}
                                                             </span>
                                                             <span className="text-white bg-neutral-03 border border-[#FFFFFF1A] px-3 py-1.5 rounded-lg w-[80px] text-center inline-block shadow-sm font-mono">
-                                                                {format(new Date(slot.requested_start_time), 'h:mm a')}
+                                                                {formatInTZ(slot.requested_start_time, 'h:mm a')}
                                                             </span>
                                                         </div>
                                                     ))}
@@ -531,7 +578,7 @@ function BookingCard({ group, type, isSelected, onClick, router, onCancel, isCan
                                             disabled={isEditLoading}
                                             onClick={(e: any) => {
                                                 e.stopPropagation()
-                                                onEdit?.(primary.requested_start_time)
+                                                onEdit?.(primary)
                                             }}
                                         >
                                             <span className="flex items-center gap-2">Edit <EditPencilSvg className="w-3.5 h-3.5" /></span>

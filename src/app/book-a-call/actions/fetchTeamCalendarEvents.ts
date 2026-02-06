@@ -66,6 +66,10 @@ export async function fetchTeamCalendarEvents({ memberIds, startDate, endDate }:
                     color: member.color || '#888888',
                     memberId: member.id,
                     memberName: member.name,
+                    description: event.description || '',
+                    location: event.location || '',
+                    hangoutLink: event.hangoutLink || '',
+                    attendees: event.attendees || []
                 }))
 
                 return { memberId: member.id, events, error: null }

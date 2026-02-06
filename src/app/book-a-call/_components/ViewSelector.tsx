@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Check, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import Button from '@/components/core/button'
 
 type ViewType = 'Daily' | 'Weekly' | 'Monthly'
 
@@ -19,10 +20,10 @@ export default function ViewSelector({ selected, onSelect }: ViewSelectorProps) 
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-                <button className="flex items-center gap-2 px-4 py-2 bg-[#1C1C1C] border border-[#333] rounded-full text-white text-sm font-medium hover:border-gray-500 transition-colors">
+                <Button className="flex items-center gap-2 px-2 py-2 h-[32px]">
                     {selected}
                     <ChevronDown size={14} className="text-gray-500" />
-                </button>
+                </Button>
             </PopoverTrigger>
             <PopoverContent
                 align="start"

@@ -11,6 +11,7 @@ import SearchSvg from '@/components/svg/search'
 import { Checkbox } from '@/components/ui/checkbox'
 import { updateTeamMemberStatus } from '../../actions/updateTeamMemberStatus'
 import { toast } from 'sonner'
+import ArrowSvg from '@/components/svg/arrow'
 
 export default function StepReview() {
     const { setStep, members, setMembers } = useSyncStore()
@@ -47,7 +48,7 @@ export default function StepReview() {
     }
 
     return (
-        <div className="flex flex-col h-full bg-card section-border rounded-xl overflow-hidden max-w-[550px] w-full max-h-[570px] p-6 ">
+        <div className="flex flex-col h-full bg-card section-border rounded-xl overflow-hidden max-w-[550px] w-full max-h-[570px] p-6 mt-29">
             <h2 className="text-xl font-medium text-white mb-6">Select team calendars to display</h2>
 
             <div className="mb-6">
@@ -116,8 +117,8 @@ export default function StepReview() {
                 </motion.div>
             </div>
             <div className="mt-6 pt-4 border-t border-[#262626] flex justify-end">
-                <Button onClick={handleNext} disabled={isSaving}>
-                    {isSaving ? <Loader2 className="animate-spin" /> : <>Next Step <ChevronRight size={16} /></>}
+                <Button onClick={handleNext} disabled={isSaving} className='w-full'>
+                    {isSaving ? <Loader2 className="animate-spin" /> : <>Next Step <ArrowSvg className='size-4' /></>}
                 </Button>
             </div>
         </div>
