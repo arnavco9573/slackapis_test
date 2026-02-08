@@ -3,6 +3,23 @@
 import { createAdminClient, createClientServer } from "@/lib/supabase/server";
 import { createSlackClient } from "@/lib/slack";
 
+export type Message = {
+    ts: string;
+    text: string;
+    user: string;
+    avatar?: string;
+    reply_count?: number;
+    latest_reply?: string;
+    files?: any[];
+    attachments?: any[];
+    id?: string;
+    subtype?: string;
+    username?: string;
+    userId?: string;
+    icons?: any;
+    reactions?: any[];
+};
+
 // Cache storage
 const cache = {
     channels: new Map<string, { data: any[]; timestamp: number }>(),
@@ -98,9 +115,17 @@ async function getSlackClientAndType(wlPartnerId?: string) {
         const supabase = await createClientServer();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (user) {
-            const { data, error: dbError } = await supabase.from('user_slack_tokens').select('access_token').eq('user_id', user.id).single();
-            if (data?.access_token) {
-                return { client: createSlackClient(data.access_token), type: 'user' as const };
+            // Try ID first
+            let { data } = await supabase.from('master_profiles').select('slack_access_token').eq('id', user.id).single();
+
+            // Fallback: Try Email if ID lookup failed or returned no token
+            if (!data?.slack_access_token && user.email) {
+                const { data: emailData } = await supabase.from('master_profiles').select('slack_access_token').eq('email', user.email).single();
+                data = emailData;
+            }
+
+            if (data?.slack_access_token) {
+                return { client: createSlackClient(data.slack_access_token), type: 'user' as const };
             }
         }
     } catch (e) {
@@ -162,10 +187,10 @@ export async function getChannelHistory(wlPartnerId: string | undefined, channel
             })
         );
 
-        return { messages: enrichedMessages, nextCursor };
+        return { messages: enrichedMessages, has_more: result.has_more, nextCursor };
     } catch (e) {
         console.error("Error fetching history:", e);
-        return { messages: [], nextCursor: undefined };
+        return { messages: [], has_more: false, nextCursor: undefined };
     }
 }
 
@@ -205,6 +230,27 @@ export async function sendMessage(
         return { success: false, error: e };
     }
 }
+
+export async function getMessage(channelId: string, messageTs: string, wlPartnerId?: string) {
+    const slack = await getSlackClient(wlPartnerId);
+    try {
+        const result = await slack.conversations.replies({
+            channel: channelId,
+            ts: messageTs,
+            limit: 1,
+            inclusive: true
+        });
+
+        if (result.messages && result.messages.length > 0) {
+            return result.messages[0];
+        }
+        return null;
+    } catch (e) {
+        console.error("Error fetching message:", e);
+        return null;
+    }
+}
+
 
 export async function addReaction(wlPartnerId: string | undefined, channelId: string, timestamp: string, emojiName: string) {
     console.log("Server Action addReaction:", { channelId, timestamp, emojiName });
@@ -375,6 +421,9 @@ export async function getUsers(wlPartnerId?: string) {
     try {
         const result = await slack.users.list({});
         const members = result.members ?? [];
+        // if (members.length > 0) {
+        //     // console.log("DEBUG: getUsers - First User Profile:", JSON.stringify(members[0]?.profile, null, 2));
+        // }
         cache.users.set(cacheKey, { data: members, timestamp: now });
         return members;
     } catch (e) {
@@ -405,7 +454,13 @@ export async function getChannelLastMessageTs(wlPartnerId: string | undefined, c
 }
 
 export async function getSlackIdentity(wlPartnerId?: string) {
-    const { client } = await getSlackClientAndType(wlPartnerId);
+    const { client, type } = await getSlackClientAndType(wlPartnerId);
+
+    // If we fell back to a bot token, we consider the user "not connected"
+    if (type === 'bot') {
+        return null;
+    }
+
     try {
         const result = await client.auth.test();
         return {
@@ -455,5 +510,35 @@ export async function fetchSlackDMs(wlPartnerId?: string) {
     } catch (e: any) {
         console.error("Error fetching DMs:", e?.data?.error || e);
         return [];
+    }
+}
+
+export async function isSlackConnectedInDB() {
+    try {
+        const supabase = await createClientServer();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return false;
+
+        // Try ID first
+        let { data, error } = await supabase
+            .from('master_profiles')
+            .select('slack_access_token')
+            .eq('id', user.id)
+            .single();
+
+        // Fallback: Try Email if ID lookup failed or returned no token
+        if (!data?.slack_access_token && user.email) {
+            const { data: emailData } = await supabase
+                .from('master_profiles')
+                .select('slack_access_token')
+                .eq('email', user.email)
+                .single();
+            data = emailData;
+        }
+
+        return !!data?.slack_access_token;
+    } catch (e) {
+        console.error("Error checking slack connection in DB:", e);
+        return false;
     }
 }

@@ -26,13 +26,13 @@ export async function GET(req: NextRequest) {
         }
 
         // 2. Get user's Slack token
-        const { data: userToken, error: tokenError } = await supabase
-            .from("user_slack_tokens")
-            .select("access_token")
-            .eq("user_id", user.id)
+        const { data: userProfile, error: tokenError } = await supabase
+            .from("master_profiles")
+            .select("slack_access_token")
+            .eq("id", user.id)
             .single();
 
-        let token = userToken?.access_token;
+        let token = userProfile?.slack_access_token;
 
         // 3. Fallback to bot token if no user token
         if (!token) {

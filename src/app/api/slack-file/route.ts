@@ -27,15 +27,14 @@ export async function GET(req: NextRequest) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
-        // 2. Get user's Slack token from user_slack_tokens table
-        // We use the same table as slack-actions.ts
-        const { data: userToken, error: tokenError } = await supabaseClient
-            .from('user_slack_tokens')
-            .select('access_token')
-            .eq('user_id', user.id)
+        // 2. Get user's Slack token from master_profiles table
+        const { data: userProfile, error: tokenError } = await supabaseClient
+            .from('master_profiles')
+            .select('slack_access_token')
+            .eq('id', user.id)
             .single();
 
-        if (tokenError || !userToken?.access_token) {
+        if (tokenError || !userProfile?.slack_access_token) {
             console.warn("[PROXY] No Slack user token found for user:", user.id);
             // Fallback to bot token if user token not available
             const botToken = process.env.SLACK_BOT_TOKEN;
@@ -47,7 +46,7 @@ export async function GET(req: NextRequest) {
         }
 
         console.log("[PROXY] Using user token for authenticated access");
-        return await fetchFile(fileUrl, fileName, userToken.access_token);
+        return await fetchFile(fileUrl, fileName, userProfile.slack_access_token);
 
     } catch (error: any) {
         console.error("[PROXY] Unexpected error:", error);

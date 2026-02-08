@@ -1,14 +1,29 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { ChannelSidebar } from "../_components/channel-sidebar";
-import { ConnectSlackButton } from "../_components/connect-slack-button";
-import { ChatWindow } from "../_components/chat-window";
-import { MessageInput } from "../_components/message-input";
-import { fetchSlackChannels, getChannelHistory, sendMessage, uploadFile, getUsers, getChannelLastMessageTs, getSlackIdentity, fetchSlackDMs, clearSlackCache } from "@/app/actions/slack-actions";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
-import { ThreadView } from "../_components/thread-view";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import {
+    fetchSlackChannels,
+    fetchSlackDMs,
+    getChannelHistory,
+    getUsers,
+    sendMessage,
+    uploadFile,
+    getSlackIdentity,
+    getChannelLastMessageTs,
+    addReaction,
+    isSlackConnectedInDB
+} from "@/app/actions/slack-actions";
+import { ChannelSidebar } from "../_components/channel-sidebar";
+import { ChatArea } from "../_components/chat-area";
+import { MessageInput } from "../_components/message-input";
+import { ThreadView } from "../_components/thread-view";
+import { ThreadsView } from "../_components/threads-view";
+import { MediaViewer } from "../_components/media-viewer";
+import { CreateChannelModal } from "../_components/create-channel-modal";
+import { DirectoryView } from "../_components/directory-view";
+import { fetchDirectoryRoles } from "../actions";
 
 const EMPTY_ARRAY: any[] = [];
 
@@ -24,13 +39,20 @@ export function SlackInterface() {
 
     const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
     const [activeThread, setActiveThread] = useState<any | null>(null);
+    const [activeView, setActiveView] = useState<'chat' | 'threads' | 'directory'>('chat');
+    const [viewingMedia, setViewingMedia] = useState<{ url: string; name: string; type: string } | null>(null);
+    const [isCreateChannelModalOpen, setIsCreateChannelModalOpen] = useState(false);
+
+    // Scroll handling
+    const chatScrollRef = useRef<HTMLDivElement>(null);
 
     // Sync URL -> State
     useEffect(() => {
         if (channelParam && channelParam !== selectedChannelId) {
             setSelectedChannelId(channelParam);
+            setActiveView('chat');
         }
-    }, [channelParam]);
+    }, [channelParam, selectedChannelId]);
 
     const handleSelectChannel = (id: string) => {
         const params = new URLSearchParams(searchParams);
@@ -39,6 +61,7 @@ export function SlackInterface() {
         params.delete('messageId');
         router.push(`${pathname}?${params.toString()}`);
         setSelectedChannelId(id);
+        setActiveView('chat');
     };
 
     const handleOpenThread = (msg: any) => {
@@ -55,29 +78,50 @@ export function SlackInterface() {
         setActiveThread(null);
     };
 
-    // 1. Data Fetching - Wrapped in arrow functions to fix Type Errors
+    // 1. Data Fetching
+    const { data: identity, isLoading: isIdentityLoading } = useQuery({
+        queryKey: ['slack-identity'],
+        queryFn: () => getSlackIdentity(),
+        staleTime: 60 * 60 * 1000,
+    });
+
+    const { data: isDbConnected, isLoading: isDbLoading } = useQuery({
+        queryKey: ['slack-db-connection'],
+        queryFn: () => isSlackConnectedInDB(),
+        staleTime: 5 * 60 * 1000,
+    });
+
+    const isConnected = !!identity?.id;
+
     const { data: channels = [], isLoading: isChannelsLoading } = useQuery({
         queryKey: ['slack-channels'],
         queryFn: () => fetchSlackChannels(),
         staleTime: 5 * 60 * 1000,
+        enabled: isConnected,
     });
 
     const { data: dms = [], isLoading: isDMsLoading } = useQuery({
         queryKey: ['slack-dms'],
         queryFn: () => fetchSlackDMs(),
         staleTime: 5 * 60 * 1000,
+        enabled: isConnected,
     });
 
     const { data: userList = [], isLoading: isUsersLoading } = useQuery({
         queryKey: ['slack-users'],
         queryFn: () => getUsers(),
         staleTime: 5 * 60 * 1000,
+        enabled: isConnected,
     });
 
-    const { data: identity } = useQuery({
-        queryKey: ['slack-identity'],
-        queryFn: () => getSlackIdentity(),
-        staleTime: 60 * 60 * 1000,
+    const { data: directoryRoles = { partners: [], admins: [] } } = useQuery({
+        queryKey: ['slack-directory-roles'],
+        queryFn: async () => {
+            const roles = await fetchDirectoryRoles();
+            console.log("DEBUG: SlackInterface - Fetched Roles:", roles);
+            return roles;
+        },
+        staleTime: 5 * 60 * 1000,
     });
 
     // Memoize users map
@@ -86,11 +130,44 @@ export function SlackInterface() {
         if (Array.isArray(userList)) {
             userList.forEach((u: any) => { if (u?.id) map[u.id] = u; });
         }
+        console.log("DEBUG: SlackInterface - Users Map Size:", Object.keys(map).length);
+        if (Object.keys(map).length > 0) {
+            const sampleUser = Object.values(map)[0];
+            console.log("DEBUG: SlackInterface - Sample User:", { id: sampleUser.id, email: sampleUser.profile?.email });
+        }
         return map;
     }, [userList]);
 
     const isInitialLoading = isChannelsLoading || isDMsLoading || isUsersLoading;
     const currentSlackUserId = identity?.id || null;
+
+    const allChannelsForSidebar = useMemo(() => {
+        const sidebarChannels: any[] = (channels || []).map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            type: c.is_private ? 'private' : 'public',
+            description: c.purpose?.value || '',
+            num_members: c.num_members,
+            is_member: c.is_member,
+            userId: c.creator,
+            avatar: undefined
+        }));
+
+        const sidebarDms = (dms || []).map((d: any) => {
+            const otherUser = users[d.user];
+            return {
+                id: d.id,
+                name: otherUser?.real_name || otherUser?.name || "Direct Message",
+                type: 'dm',
+                avatar: otherUser?.profile?.image_512 || otherUser?.profile?.image_192 || otherUser?.profile?.image_original || otherUser?.profile?.image_48,
+                userId: d.user,
+                is_member: true,
+                num_members: 2
+            };
+        });
+
+        return [...sidebarChannels, ...sidebarDms];
+    }, [channels, dms, users]);
 
     // 2. Messages
     const {
@@ -101,22 +178,29 @@ export function SlackInterface() {
         isFetchingNextPage
     } = useInfiniteQuery({
         queryKey: ['slack-messages', selectedChannelId],
-        queryFn: async ({ pageParam = undefined }: { pageParam?: string }) => {
-            if (!selectedChannelId) return { messages: [], nextCursor: undefined };
-            return await getChannelHistory(undefined, selectedChannelId, pageParam, 30);
+        queryFn: async ({ pageParam = undefined }) => {
+            if (!selectedChannelId) return { messages: [], hasMore: false, nextCursor: undefined };
+            const history = await getChannelHistory(undefined, selectedChannelId, pageParam);
+            return {
+                messages: history.messages || [],
+                hasMore: history.has_more,
+                nextCursor: history.nextCursor
+            };
         },
         getNextPageParam: (lastPage: any) => lastPage?.nextCursor,
         initialPageParam: undefined,
-        enabled: !!selectedChannelId,
+        enabled: !!selectedChannelId && activeView === 'chat',
         refetchInterval: 60000,
         staleTime: 5000,
     });
 
     const messages = useMemo(() => {
-        return messagesData ? messagesData.pages.flatMap((page: any) => page.messages) : EMPTY_ARRAY;
+        if (!messagesData) return EMPTY_ARRAY;
+        return [...messagesData.pages]
+            .reverse()
+            .flatMap((page: any) => [...page.messages].reverse());
     }, [messagesData]);
 
-    // Deep link thread loading
     useEffect(() => {
         if (threadParam && selectedChannelId && messages.length > 0) {
             const threadParent = messages.find((m: any) => m.ts === threadParam);
@@ -125,6 +209,20 @@ export function SlackInterface() {
             setActiveThread(null);
         }
     }, [threadParam, selectedChannelId, messages]);
+
+    // Auto-scroll to bottom
+    useEffect(() => {
+        if (selectedChannelId && activeView === 'chat' && chatScrollRef.current) {
+            const scrollContainer = chatScrollRef.current;
+            // Use setTimeout to ensure DOM is updated
+            setTimeout(() => {
+                scrollContainer.scrollTo({
+                    top: scrollContainer.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }, 100);
+        }
+    }, [selectedChannelId, activeView, messages.length]);
 
     // 3. Unread Status
     const [lastReadTimestamps, setLastReadTimestamps] = useState<Record<string, string>>({});
@@ -136,28 +234,35 @@ export function SlackInterface() {
     }, []);
 
     useEffect(() => {
-        if (selectedChannelId) {
-            const nowTs = (Date.now() / 1000).toString();
-            setLastReadTimestamps(prev => {
-                const updated = { ...prev, [selectedChannelId]: nowTs };
-                localStorage.setItem("slack_last_read_ts", JSON.stringify(updated));
-                return updated;
-            });
+        if (selectedChannelId && activeView === 'chat' && messages.length > 0) {
+            const latestTs = messages[messages.length - 1]?.ts;
+            if (latestTs && lastReadTimestamps[selectedChannelId] !== latestTs) {
+                setLastReadTimestamps(prev => {
+                    if (prev[selectedChannelId] === latestTs) return prev;
+                    const updated = { ...prev, [selectedChannelId]: latestTs };
+                    localStorage.setItem("slack_last_read_ts", JSON.stringify(updated));
+                    return updated;
+                });
+            }
+        }
+    }, [selectedChannelId, messages, activeView, lastReadTimestamps]);
+
+    useEffect(() => {
+        if (selectedChannelId && activeView === 'chat') {
             setUnreadChannels(prev => {
+                if (!prev.has(selectedChannelId)) return prev;
                 const next = new Set(prev);
                 next.delete(selectedChannelId);
                 return next;
             });
         }
-    }, [selectedChannelId, messages]);
+    }, [selectedChannelId, activeView]);
 
     const { data: latestTsMap } = useQuery({
         queryKey: ['slack-unread-map-global'],
         queryFn: async () => {
             if (channels.length === 0) return {};
-            const channelIds = channels.map((c: any) => c.id);
-            const dmIds = dms.map((d: any) => d.id);
-            const allIds = [...channelIds, ...dmIds];
+            const allIds = [...channels.map((c: any) => c.id), ...dms.map((d: any) => d.id)];
             if (allIds.length === 0) return {};
             return await getChannelLastMessageTs(undefined, allIds);
         },
@@ -171,11 +276,10 @@ export function SlackInterface() {
         setUnreadChannels(prev => {
             const next = new Set(prev);
             let changed = false;
-            Object.entries(latestTsMap).forEach(([cid, latestTs]) => {
-                if (cid === selectedChannelId) return;
+            Object.entries(latestTsMap as Record<string, string>).forEach(([cid, latestTs]) => {
+                if (cid === selectedChannelId && activeView === 'chat') return;
                 const lastRead = lastReadTimestamps[cid] || "0";
-                // @ts-ignore
-                if (parseFloat(latestTs) > parseFloat(lastRead)) {
+                if (parseFloat(latestTs as string) > parseFloat(lastRead)) {
                     if (!next.has(cid)) {
                         next.add(cid);
                         changed = true;
@@ -184,125 +288,138 @@ export function SlackInterface() {
             });
             return changed ? next : prev;
         });
-    }, [latestTsMap, lastReadTimestamps, selectedChannelId]);
+    }, [latestTsMap, lastReadTimestamps, selectedChannelId, activeView]);
 
     // 4. Mutations
     const sendMessageMutation = useMutation({
-        mutationFn: async (text: string) => {
+        mutationFn: async ({ text, threadTs }: { text: string, threadTs?: string }) => {
             if (!selectedChannelId) return;
-            return await sendMessage(undefined, selectedChannelId, text, "Master Admin", undefined);
+            return await sendMessage(undefined, selectedChannelId, text, "Master Admin", undefined, threadTs);
+        },
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['slack-messages', selectedChannelId] });
+            if (variables.threadTs) {
+                queryClient.invalidateQueries({ queryKey: ['slack-thread-replies', selectedChannelId, variables.threadTs] });
+            }
+        }
+    });
+
+    const reactMutation = useMutation({
+        mutationFn: async ({ timestamp, emojiName }: { timestamp: string, emojiName: string }) => {
+            if (!selectedChannelId) return;
+            return await addReaction(undefined, selectedChannelId, timestamp, emojiName);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['slack-messages', selectedChannelId] });
         }
     });
 
-    const uploadFileMutation = useMutation({
-        mutationFn: async (file: File) => {
-            if (!selectedChannelId) return;
-            const formData = new FormData();
-            formData.append("file", file);
-            return await uploadFile(undefined, selectedChannelId, formData);
-        },
-        onSuccess: (data) => {
-            console.log("File uploaded successfully. Rich metadata:", data);
-            queryClient.invalidateQueries({ queryKey: ['slack-messages', selectedChannelId] });
-        }
-    });
-
-    const handleRefresh = async () => {
-        await clearSlackCache();
-        await Promise.all([
-            queryClient.invalidateQueries({ queryKey: ['slack-channels'] }),
-            queryClient.invalidateQueries({ queryKey: ['slack-dms'] }),
-            queryClient.invalidateQueries({ queryKey: ['slack-users'] })
-        ]);
-    }
-
     return (
-        <div className="flex h-full border dark:border-zinc-800 rounded-lg overflow-hidden shadow-sm bg-white dark:bg-zinc-950 font-sans antialiased">
-            <ChannelSidebar
-                channels={channels as any[]}
-                selectedChannelId={selectedChannelId}
-                onSelectChannel={handleSelectChannel}
-                isLoading={isInitialLoading}
-                onRefresh={handleRefresh}
-                unreadChannelIds={unreadChannels}
-                users={users}
-                dms={dms as any[]}
-                currentUserId={currentSlackUserId}
-            />
+        <div className="flex h-full rounded-lg overflow-hidden bg-card section-border shadow-sm font-sans antialiased">
+            {currentSlackUserId && (
+                <ChannelSidebar
+                    channelsData={{
+                        isSlackConnected: !!identity,
+                        currentSlackUserId: currentSlackUserId
+                    }}
+                    channelsLoading={isInitialLoading}
+                    allChannels={allChannelsForSidebar}
+                    selectedChannel={selectedChannelId}
+                    setSelectedChannel={handleSelectChannel}
+                    unreadStatus={unreadChannels}
+                    lastReadTimestamps={lastReadTimestamps}
+                    activeView={activeView}
+                    setActiveView={setActiveView}
+                    slackAuthUrl={undefined}
+                    users={users}
+                    onOpenCreateChannel={() => setIsCreateChannelModalOpen(true)}
+                />
+            )}
 
-            <div className="flex flex-col flex-1 min-w-0 bg-white dark:bg-zinc-950">
-                <div className="h-14 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-4 bg-white dark:bg-zinc-950">
-                    <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-zinc-900 dark:text-zinc-100">
-                            {(() => {
-                                const channel = channels.find((c: any) => c.id === selectedChannelId);
-                                if (channel) return channel.name?.replace('wl-', '');
-                                const dm = dms.find((d: any) => d.id === selectedChannelId);
-                                if (dm) {
-                                    const otherUser = dm.user ? users[dm.user] : undefined;
-                                    return otherUser?.real_name || otherUser?.name || "Direct Message";
+            <div className="flex-1 min-w-0 bg-[#0F1115] relative flex flex-col h-full">
+                {activeView === 'directory' ? (
+                    <DirectoryView
+                        allChannels={allChannelsForSidebar}
+                        users={users}
+                        onChannelSelect={(id) => handleSelectChannel(id)}
+                        directoryRoles={directoryRoles}
+                    />
+                ) : activeView === 'threads' ? (
+                    <ThreadsView
+                        allChannels={allChannelsForSidebar}
+                        currentUserId={currentSlackUserId ?? undefined}
+                        onThreadClick={(msg: any) => {
+                            handleOpenThread(msg);
+                            setActiveView('chat');
+                            if (msg.channelId) handleSelectChannel(msg.channelId as string);
+                        }}
+                    />
+                ) : (
+                    <div className="flex-1 min-h-0 flex flex-row h-full">
+                        <ChatArea
+                            channelsData={{
+                                isSlackConnected: !!identity || (isDbConnected ?? false),
+                                isDbLoading: isDbLoading,
+                                isIdentityLoading: isIdentityLoading,
+                                currentSlackUserId: currentSlackUserId
+                            }}
+                            selectedChannel={selectedChannelId}
+                            allChannels={allChannelsForSidebar}
+                            messages={messages}
+                            isLoading={isHistoryLoading || isChannelsLoading}
+                            currentUserId={currentSlackUserId}
+                            onReply={handleOpenThread}
+                            users={users}
+                            onMediaClick={(url: string, name: string, type: string) => setViewingMedia({ url, name, type })}
+                            onSendMessage={async (text: string, file?: File | null) => {
+                                if (file && selectedChannelId) {
+                                    const formData = new FormData();
+                                    formData.append("file", file);
+                                    await uploadFile(undefined, selectedChannelId, formData);
                                 }
-                                return 'Select a channel';
-                            })()}
-                        </h3>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <ConnectSlackButton isConnected={!!currentSlackUserId} />
-                        {selectedChannelId && (
-                            <a
-                                href={`https://slack.com/app_redirect?channel=${selectedChannelId}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-zinc-500 hover:text-zinc-900 transition-colors"
-                                title="Open in Slack"
-                            >
-                                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.527 2.527 0 0 1 8.835 24a2.527 2.527 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.527 2.527 0 0 1 2.521 2.522v2.52h-2.521zM8.834 6.313a2.527 2.527 0 0 1 2.521 2.521 2.527 2.527 0 0 1-2.521 2.521H2.522A2.527 2.527 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.527 2.527 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.527 2.527 0 0 1-2.522 2.521 2.527 2.527 0 0 1-2.522-2.521V0a2.527 2.527 0 0 1 2.522 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.521 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.521-2.522 2.527 2.527 0 0 1 2.521-2.522h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.521h-6.313z" /></svg>
-                            </a>
-                        )}
-                    </div>
-                </div>
+                                if (text.trim()) {
+                                    await sendMessageMutation.mutateAsync({ text });
+                                }
+                            }}
+                            onReact={async (message: any, emoji: string) => {
+                                await reactMutation.mutateAsync({ timestamp: message.ts, emojiName: emoji });
+                            }}
+                            onLoadMore={fetchNextPage}
+                            hasMore={hasNextPage}
+                            isFetchingMore={isFetchingNextPage}
+                            scrollRef={chatScrollRef}
+                            activeThreadId={activeThread?.ts}
+                            highlightMessageId={messageIdParam}
+                        />
 
-                {selectedChannelId ? (
-                    <div className="flex flex-1 overflow-hidden">
-                        <div className="flex-1 flex flex-col min-w-0">
-                            <ChatWindow
-                                key={selectedChannelId} // ✅ KEEPS SCROLL FIX
-                                messages={messages}
-                                isLoading={isHistoryLoading && messages.length === 0}
-                                users={users}
-                                currentUserId={currentSlackUserId}
-                                onReply={handleOpenThread}
-                                channelId={selectedChannelId || ""}
-                                hasMore={hasNextPage}
-                                onLoadMore={fetchNextPage}
-                                isFetchingMore={isFetchingNextPage}
-                                highlightMessageId={messageIdParam}
-                            />
-                            <MessageInput
-                                onSendMessage={async (text) => { await sendMessageMutation.mutateAsync(text); }}
-                                onUploadFile={async (file) => { await uploadFileMutation.mutateAsync(file); }}
-                                users={users}
-                            />
-                        </div>
-                        {activeThread && (
+                        {activeThread && selectedChannelId && (
                             <ThreadView
-                                channelId={selectedChannelId}
                                 parentMessage={activeThread}
+                                channelId={selectedChannelId}
+                                currentUserId={currentSlackUserId}
                                 onClose={handleCloseThread}
                                 users={users}
-                                currentUserId={currentSlackUserId}
+                                onMediaClick={(url, name, type) => setViewingMedia({ url, name, type })}
                             />
                         )}
-                    </div>
-                ) : (
-                    <div className="flex-1 flex items-center justify-center">
-                        Select a partner channel from the sidebar to start chatting.
                     </div>
                 )}
             </div>
+
+            <MediaViewer
+                media={viewingMedia}
+                onClose={() => setViewingMedia(null)}
+            />
+
+            <CreateChannelModal
+                isOpen={isCreateChannelModalOpen}
+                onClose={() => setIsCreateChannelModalOpen(false)}
+                onCreated={() => {
+                    setIsCreateChannelModalOpen(false);
+                    queryClient.invalidateQueries({ queryKey: ['slack-channels'] });
+                }}
+                users={users}
+            />
         </div>
     );
 }

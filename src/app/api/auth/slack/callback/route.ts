@@ -36,25 +36,63 @@ export async function GET(request: Request) {
         const supabase = await createClientServer();
         const { data: { user } } = await supabase.auth.getUser();
 
+        console.log("DEBUG: Callback - Supabase User:", user?.id);
+
         if (!user) {
+            console.error("DEBUG: Callback - No authenticated user found");
             return NextResponse.json({ error: "User not logged in" }, { status: 401 });
         }
 
-        // Store the token
-        const { error: dbError } = await supabase
-            .from("user_slack_tokens")
-            .upsert({
-                user_id: user.id,
+        // Store the token in master_profiles using Admin Client to bypass RLS
+        // We assume the user has already run the migration to add slack_access_token and slack_user_id columns
+
+        // Import createAdminClient dynamically or assume it's available from "@/lib/supabase/server"
+        // If not exported, we might need to adjust imports. checking imports first.
+        // It seems createAdminClient is likely in "@/lib/supabase/server" based on previous context.
+
+        const { createAdminClient } = await import("@/lib/supabase/server");
+        const adminSupabase = createAdminClient();
+
+        console.log("DEBUG: Callback - Attempting to update master_profiles for user:", user.id);
+        console.log("DEBUG: Callback - Token Data:", {
+            token_preview: result.authed_user.access_token.substring(0, 10) + "...",
+            slack_id: result.authed_user.id
+        });
+
+        // Try updating by ID first
+        let { data: updatedData, error: dbError } = await adminSupabase
+            .from("master_profiles")
+            .update({
+                slack_access_token: result.authed_user.access_token,
                 slack_user_id: result.authed_user.id,
-                access_token: result.authed_user.access_token,
-                scopes: result.scope,
-                updated_at: new Date().toISOString()
-            }, { onConflict: "user_id" });
+            })
+            .eq("id", user.id)
+            .select();
+
+        // If no rows updated by ID, try matching by Email
+        if (!dbError && (!updatedData || updatedData.length === 0)) {
+            console.log("DEBUG: Callback - No profile found by ID. Trying email:", user.email);
+            if (user.email) {
+                const { data: emailData, error: emailError } = await adminSupabase
+                    .from("master_profiles")
+                    .update({
+                        slack_access_token: result.authed_user.access_token,
+                        slack_user_id: result.authed_user.id,
+                    })
+                    .eq("email", user.email)
+                    .select();
+
+                updatedData = emailData;
+                dbError = emailError;
+            }
+        }
 
         if (dbError) {
-            console.error("DB Error:", dbError);
-            return NextResponse.json({ error: "Failed to store token" }, { status: 500 });
+            console.error("DEBUG: Callback - DB Error updating master_profiles:", dbError);
+            return NextResponse.json({ error: "Failed to store token in profile" }, { status: 500 });
         }
+
+        console.log("DEBUG: Callback - Successfully updated master_profiles");
 
         // Redirect back to communication page
         return NextResponse.redirect(`${origin}/communication`);

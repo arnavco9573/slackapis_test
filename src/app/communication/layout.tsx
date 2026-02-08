@@ -1,4 +1,5 @@
-import Sidebar from '@/components/core/sidebar';
+import SideBar from '@/components/core/sidebar';
+import TopBar from '@/components/core/top-bar';
 
 export default function CommunicationLayout({
     children,
@@ -6,9 +7,10 @@ export default function CommunicationLayout({
     children: React.ReactNode;
 }) {
     return (
-        <div className="flex h-screen w-full overflow-hidden bg-gray-50 dark:bg-gray-950">
-            <Sidebar />
-            <main className="flex-1 ml-20 h-full flex flex-col overflow-hidden transition-all duration-300">
+        <div className="flex min-h-screen">
+            <SideBar />
+            <TopBar />
+            <main className="flex-1 pl-20 pt-[126px] transition-all duration-300 ease-in-out w-full max-w-[100vw] bg-(--Primary-800)">
                 {children}
             </main>
         </div>

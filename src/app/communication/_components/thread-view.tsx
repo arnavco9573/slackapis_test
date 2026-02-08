@@ -1,150 +1,154 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { X, MessageSquare, Send } from "lucide-react";
-import { getThreadReplies, sendMessage, uploadFile } from "@/app/actions/slack-actions";
-import { MessageInput } from "./message-input";
-import { format } from "date-fns";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getThreadReplies, sendMessage, addReaction, type Message, uploadFile } from '@/app/actions/slack-actions';
+import { X, Loader2, MessageSquare } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { MessageInput } from './message-input';
+import { MessageItem } from './message-item';
+import { useEffect, useRef, useMemo } from 'react';
 
 interface ThreadViewProps {
     channelId: string;
-    parentMessage: any;
+    parentMessage: Message;
     onClose: () => void;
     users: Record<string, any>;
     currentUserId: string | null;
+    onMediaClick?: (url: string, name: string, type: string) => void;
 }
 
-export function ThreadView({ channelId, parentMessage, onClose, users, currentUserId }: ThreadViewProps) {
-    const [replyText, setReplyText] = useState("");
+export function ThreadView({ channelId, parentMessage, onClose, users, currentUserId, onMediaClick }: ThreadViewProps) {
     const queryClient = useQueryClient();
-    const threadTs = parentMessage.ts;
+    const scrollRef = useRef<HTMLDivElement>(null);
 
     // Fetch replies
-    const { data: replies = [], isLoading } = useQuery({
-        queryKey: ['slack-thread', channelId, threadTs],
+    const { data: repliesData, isLoading } = useQuery({
+        queryKey: ['slack-thread', channelId, parentMessage.ts],
         queryFn: async () => {
-            const res = await getThreadReplies(undefined, channelId, threadTs);
+            const res = await getThreadReplies(undefined, channelId, parentMessage.ts);
             return res.success ? res.messages : [];
         },
-        // We'll rely on global polling or socket updates for now, 
-        // but for immediate feedback we refetch on send.
-        staleTime: 1000 * 60,
+        refetchInterval: 10000,
     });
 
-    // Send Reply Mutation
-    const sendReplyMutation = useMutation({
-        mutationFn: async (text: string) => {
-            return await sendMessage(undefined, channelId, text, undefined, undefined, threadTs);
-        },
-        onSuccess: () => {
-            setReplyText("");
-            queryClient.invalidateQueries({ queryKey: ['slack-thread', channelId, threadTs] });
-            queryClient.invalidateQueries({ queryKey: ['slack-messages', channelId] }); // Update reply count in main view
-        }
-    });
+    const replies = (repliesData || []) as Message[];
 
-    const handleSend = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!replyText.trim()) return;
-        sendReplyMutation.mutate(replyText);
+    // Scroll to bottom on load
+    useEffect(() => {
+        if (replies.length > 0 && scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [replies.length]);
+
+    const handleSendReply = async (text: string, file?: File | null) => {
+        try {
+            if (file) {
+                const formData = new FormData();
+                formData.append("file", file);
+                await uploadFile(undefined, channelId, formData, parentMessage.ts);
+            }
+            if (text.trim()) {
+                await sendMessage(undefined, channelId, text, undefined, undefined, parentMessage.ts);
+            }
+            // Invalidate thread query
+            queryClient.invalidateQueries({ queryKey: ['slack-thread', channelId, parentMessage.ts] });
+            // Also invalidate main channel history to update reply counts
+            queryClient.invalidateQueries({ queryKey: ['slack-messages', channelId] });
+            queryClient.invalidateQueries({ queryKey: ['all-threads'] });
+        } catch (error) {
+            console.error("Failed to send reply", error);
+        }
     };
 
-    const getSender = (msg: any) => {
-        if (msg.user && users[msg.user]) {
-            const user = users[msg.user];
-            return { name: user.real_name || user.name, avatar: user.profile?.image_24 };
+    const handleReact = async (msg: Message, emoji: string) => {
+        try {
+            await addReaction(undefined, channelId, msg.ts, emoji);
+            queryClient.invalidateQueries({ queryKey: ['slack-thread', channelId, parentMessage.ts] });
+        } catch (error) {
+            console.error("Failed to react", error);
         }
-        if (msg.bot_id || msg.subtype === "bot_message") return { name: "Bot", avatar: null };
-        return { name: "Unknown", avatar: null };
     };
+
+    const parentWithProfile = useMemo(() => ({
+        ...parentMessage,
+        user: users[parentMessage.user]?.real_name || users[parentMessage.user]?.name || parentMessage.user,
+        avatar: users[parentMessage.user]?.profile?.image_48 || parentMessage.avatar
+    }), [parentMessage, users]);
 
     return (
-        <div className="w-[350px] border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col h-full shadow-xl">
+        <div
+            className="flex flex-col h-full w-full border-l border-white/10 shrink-0"
+            style={{
+                background: '#1A1B1E',
+            }}
+        >
             {/* Header */}
-            <div className="h-12 px-4 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 bg-neutral-05/50">
+            <div className="h-14 shrink-0 flex items-center justify-between px-4 w-full">
                 <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">Thread</h3>
-                    <span className="text-xs text-zinc-500">#{channelId.replace('wl-', '')}</span>
+                    <h3 className="text-[14px] font-medium text-white flex items-center gap-2">
+                        Reply Thread
+                    </h3>
                 </div>
-                <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">
+                <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 text-zinc-500 hover:text-white hover:bg-white/5">
                     <X className="w-4 h-4" />
-                </button>
+                </Button>
             </div>
 
-            {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {/* Parent Message */}
-                <div className="pb-4 border-b border-zinc-100 dark:border-zinc-800">
-                    <MessageItem msg={parentMessage} users={users} currentUserId={currentUserId} isParent />
+            {/* Scroll Area */}
+            <div className="flex-1 overflow-y-auto px-4 py-1 w-full" ref={scrollRef} style={{ scrollbarWidth: 'none' }}>
+                <MessageItem
+                    message={parentWithProfile}
+                    showReplyCount={false}
+                    onReact={handleReact}
+                    currentUserId={currentUserId}
+                    onMediaClick={onMediaClick}
+                />
+
+                <div className="relative my-2">
+                    <div className="absolute inset-0 flex items-center">
+                        <span className="w-full h-px" style={{ background: 'linear-gradient(90deg, #1A1B1E 0%, #3F4042 50.25%, #1A1B1E 100%)' }} />
+                    </div>
                 </div>
 
-                {/* Replies */}
-                {isLoading ? (
+                {isLoading && replies.length === 0 ? (
                     <div className="flex justify-center py-4">
-                        <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full" />
+                        <Loader2 className="w-5 h-5 animate-spin text-zinc-300" />
                     </div>
                 ) : (
-                    replies.slice(1).map((msg: any) => ( // Skip first, as it's the parent usually returned by 'replies'
-                        <MessageItem key={msg.ts} msg={msg} users={users} currentUserId={currentUserId} />
-                    ))
-                )}
-                {replies.length <= 1 && !isLoading && (
-                    <p className="text-xs text-zinc-400 text-center italic">No replies yet.</p>
+                    <div className="flex flex-col">
+                        {replies.slice(1).map((msg, i) => {
+                            // Only allow compact mode if it's NOT the first reply
+                            // i starts at 0 for replies.slice(1)
+                            const prevMsg = i > 0 ? (replies.slice(1))[i - 1] : null;
+                            const isCompact = !!(prevMsg && prevMsg.user === msg.user && (parseFloat(msg.ts) - parseFloat(prevMsg.ts) < 300));
+
+                            return (
+                                <MessageItem
+                                    key={msg.ts}
+                                    message={{
+                                        ...msg,
+                                        user: users[msg.user]?.real_name || users[msg.user]?.name || msg.user,
+                                        avatar: users[msg.user]?.profile?.image_48 || msg.avatar
+                                    }}
+                                    onReact={handleReact}
+                                    showReplyCount={false}
+                                    isCompact={isCompact}
+                                    currentUserId={currentUserId}
+                                    onMediaClick={onMediaClick}
+                                />
+                            );
+                        })}
+                    </div>
                 )}
             </div>
 
             {/* Input */}
-            <MessageInput
-                onSendMessage={async (text) => {
-                    await sendMessage(undefined, channelId, text, undefined, undefined, threadTs);
-                    queryClient.invalidateQueries({ queryKey: ['slack-thread', channelId, threadTs] });
-                    queryClient.invalidateQueries({ queryKey: ['slack-messages', channelId] });
-                }}
-                onUploadFile={async (file) => {
-                    // Similar to slack-interface, but we need to ensure uploadFile handles threadTs if possible.
-                    // If uploadFile doesn't support threadTs yet, we might need to update it.
-                    // Assuming we updated uploadFile to take threadTs as 4th arg.
-                    const formData = new FormData();
-                    formData.append("file", file);
-                    await uploadFile(undefined, channelId, formData, threadTs);
-                    queryClient.invalidateQueries({ queryKey: ['slack-thread', channelId, threadTs] });
-                }}
-                users={users}
-            />
+            <div className="shrink-0 w-full p-4 pt-1">
+                <MessageInput
+                    onSendMessage={handleSendReply}
+                    channelName="Thread"
+                />
+            </div>
         </div>
     );
-}
-
-function MessageItem({ msg, users, currentUserId, isParent = false }: { msg: any; users: any; currentUserId: any; isParent?: boolean }) {
-    const sender = (() => {
-        if (msg.user && users[msg.user]) {
-            const u = users[msg.user];
-            return { name: u.real_name || u.name, avatar: u.profile?.image_24 };
-        }
-        return { name: msg.username || "Bot", avatar: msg.icons?.image_48 };
-    })();
-
-    const isMe = currentUserId && msg.user === currentUserId;
-
-    return (
-        <div className={`flex gap-3 ${isParent ? '' : 'text-sm'}`}>
-            <div className="shrink-0">
-                {sender.avatar ? (
-                    <img src={sender.avatar} alt="" className="w-8 h-8 rounded bg-gray-200" />
-                ) : (
-                    <div className="w-8 h-8 rounded bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-bold">
-                        {sender.name?.[0]}
-                    </div>
-                )}
-            </div>
-            <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2">
-                    <span className="font-bold text-zinc-900 dark:text-zinc-100">{sender.name}</span>
-                    <span className="text-[10px] text-zinc-400">{format(new Date(Number(msg.ts) * 1000), 'h:mm a')}</span>
-                </div>
-                <p className="text-zinc-800 dark:text-zinc-300 whitespace-pre-wrap break-words">{msg.text}</p>
-            </div>
-        </div>
-    )
 }
