@@ -36,6 +36,7 @@ interface InputFieldProps {
   pattern?: string;
   onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
   onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }
 
 const InputField = React.forwardRef<HTMLInputElement, InputFieldProps>(
@@ -143,6 +144,7 @@ const InputField = React.forwardRef<HTMLInputElement, InputFieldProps>(
                 setIsFocused(false);
                 props.onBlur?.(e);
               }}
+              onKeyDown={props.onKeyDown}
               maxLength={props.maxLength}
               minLength={props.minLength}
               disabled={props.disabled}
