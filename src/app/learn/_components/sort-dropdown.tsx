@@ -45,8 +45,8 @@ export function SortDropdown({
                 className={cn(
                     "w-5 h-5 rounded-full flex items-center justify-center transition-all",
                     isSelected
-                        ? "border border-[var(--Primary-500,#9C9C9C)]"
-                        : "border border-[var(--Primary-700,#636363)] group-hover:border-text-high"
+                        ? "border border-(--Primary-500,#9C9C9C)"
+                        : "border border-(--Primary-700,#636363) group-hover:border-text-high"
                 )}
                 style={{ borderRadius: '90px' }}
             >

@@ -153,9 +153,20 @@ export function SlackInterface() {
             avatar: undefined
         }));
 
-        const sidebarDms = (dms || []).map((d: any) => {
+        const sidebarDms = (dms || []).reduce((acc: any[], d: any) => {
             const otherUser = users[d.user];
-            return {
+
+            // Filter out deactivated users
+            if (otherUser) {
+                if (otherUser.deleted) return acc;
+                const name = otherUser.name?.toLowerCase() || '';
+                const realName = otherUser.real_name?.toLowerCase() || '';
+                if (name.startsWith('deactivateduser') || realName.startsWith('deactivateduser')) {
+                    return acc;
+                }
+            }
+
+            acc.push({
                 id: d.id,
                 name: otherUser?.real_name || otherUser?.name || "Direct Message",
                 type: 'dm',
@@ -163,8 +174,9 @@ export function SlackInterface() {
                 userId: d.user,
                 is_member: true,
                 num_members: 2
-            };
-        });
+            });
+            return acc;
+        }, []);
 
         return [...sidebarChannels, ...sidebarDms];
     }, [channels, dms, users]);

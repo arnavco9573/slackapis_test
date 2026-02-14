@@ -26,6 +26,10 @@ const nextConfig: NextConfig = {
         pathname: '/api/slack-file',
         search: '?**',
       },
+      {
+        pathname: '/**',
+        search: '',
+      },
     ],
   },
 };

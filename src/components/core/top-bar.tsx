@@ -22,7 +22,7 @@ const TopBar = () => {
     const name = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'User';
 
     return (
-        <nav className="z-40 w-[calc(100%-80px)] left-20 fixed bg-[var(--Primary-800)] h-[126px]">
+        <nav className="z-49 w-[calc(100%-80px)] left-20 fixed bg-[var(--Primary-800)] h-[126px]">
             <section className="flex justify-between items-center h-full px-[36px]">
                 <div className="flex flex-col gap-1">
                     <h1 className="text-xl font-medium text-white">

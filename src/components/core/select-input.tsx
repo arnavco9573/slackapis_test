@@ -12,13 +12,18 @@ import {
 
 interface SelectInputProps {
     label?: string;
-    value: string;
+    value: string | null;
     onChange: (value: string) => void;
     options: { value: string; label: string;[key: string]: any }[];
     placeholder?: string;
     disabled?: boolean;
     className?: string;
+    inputClassName?: string;
+    triggerClassName?: string;
     error?: string;
+    variant?: 'default' | 'button';
+    icon?: React.ReactNode;
+    readOnly?: boolean;
 }
 
 export const SelectInput = ({
@@ -29,7 +34,12 @@ export const SelectInput = ({
     placeholder = 'Select option',
     disabled,
     className,
+    inputClassName,
+    triggerClassName,
     error,
+    variant = 'default',
+    icon,
+    readOnly,
 }: SelectInputProps) => {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -54,7 +64,10 @@ export const SelectInput = ({
                     <div
                         className={cn(
                             'relative flex flex-col items-start gap-[2px] self-stretch rounded-xl px-4 py-1.5 h-[58px] justify-center cursor-pointer',
-                            disabled && 'cursor-not-allowed opacity-50'
+                            (disabled || readOnly) && 'cursor-not-allowed opacity-50',
+                            readOnly && 'pointer-events-none',
+                            inputClassName,
+                            triggerClassName
                         )}
                         style={{
                             borderRadius: 'var(--input-border-radius, 8px)',
@@ -75,7 +88,7 @@ export const SelectInput = ({
                         />
 
                         {label && (
-                            <span className="text-[12px] leading-[16px] font-normal uppercase text-(--Primary-700,#636363) z-10 transition-colors">
+                            <span className="text-[12px] leading-[16px] font-normal text-(--Primary-700,#636363) z-10 transition-colors">
                                 {label}
                             </span>
                         )}
@@ -89,7 +102,9 @@ export const SelectInput = ({
                             >
                                 {displayLabel}
                             </span>
-                            <ChevronDown className={cn("size-3 text-(--Primary-500,#9C9C9C) transition-transform", isOpen && "rotate-180")} />
+                            {icon ? icon : !readOnly && (
+                                <ChevronDown className={cn("size-3 text-(--Primary-500,#9C9C9C) transition-transform", isOpen && "rotate-180")} />
+                            )}
                         </div>
                     </div>
                 </DropdownMenuTrigger>

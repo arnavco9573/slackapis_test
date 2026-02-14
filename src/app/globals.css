@@ -633,6 +633,18 @@ input[type='number'] {
     pointer-events: none;
   }
 
+  .checklist-category-active {
+    border-radius: 12px;
+    border: 0.5px solid var(--Primary-700, #636363);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.01) 0%, rgba(255, 255, 255, 0.40) 100%);
+  }
+
+  .checklist-category-inactive {
+    border-radius: 12px;
+    border: 0.5px solid var(--Primary-700, #636363);
+    background: linear-gradient(0deg, rgba(255, 255, 255, 0.05) -0.21%, rgba(255, 255, 255, 0.01) 105.1%);
+  }
+
   .range-selected-active {
     border-radius: 500px;
     border: 0.5px solid var(--Primary-700, #636363);

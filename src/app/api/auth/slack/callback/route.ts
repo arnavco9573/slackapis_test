@@ -43,13 +43,6 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: "User not logged in" }, { status: 401 });
         }
 
-        // Store the token in master_profiles using Admin Client to bypass RLS
-        // We assume the user has already run the migration to add slack_access_token and slack_user_id columns
-
-        // Import createAdminClient dynamically or assume it's available from "@/lib/supabase/server"
-        // If not exported, we might need to adjust imports. checking imports first.
-        // It seems createAdminClient is likely in "@/lib/supabase/server" based on previous context.
-
         const { createAdminClient } = await import("@/lib/supabase/server");
         const adminSupabase = createAdminClient();
 

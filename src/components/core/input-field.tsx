@@ -104,7 +104,7 @@ const InputField = React.forwardRef<HTMLInputElement, InputFieldProps>(
             }}
           />
           {props.label && (
-            <span className="text-[12px] leading-[16px] font-normal capitalize text-[var(--Primary-700,#636363)]">
+            <span className="text-[12px] leading-[16px] font-normal capitalize text-(--Primary-700,#636363)">
               {props.label}
             </span>
           )}
@@ -116,14 +116,14 @@ const InputField = React.forwardRef<HTMLInputElement, InputFieldProps>(
               autoComplete="off"
               type={isPasswordVisible ? 'text' : props.type}
               className={cn(
-                'h-[19px] w-full relative translate-y-[-1px] bg-transparent outline-none placeholder:text-wrap',
+                'h-[19px] w-full relative -translate-y-px bg-transparent outline-none placeholder:text-wrap',
                 'text-[16px] leading-[20px] font-normal',
-                'placeholder:text-[var(--Primary-500,#9C9C9C)] placeholder:text-[16px]',
+                'placeholder:text-(--Primary-500,#9C9C9C) placeholder:text-[16px]',
                 props.error
-                  ? 'text-[var(--System-Negative,#FF5353)]'
-                  : 'text-[var(--Primary-White,#FFF)]',
+                  ? 'text-(--System-Negative,#FF5353)'
+                  : 'text-(--Primary-White,#FFF)',
                 props.disabled &&
-                'text-[var(--Primary-500,#9C9C9C)] cursor-not-allowed',
+                'text-(--Primary-500,#9C9C9C) cursor-not-allowed',
                 !isPasswordVisible &&
                 props.type === 'password' &&
                 'tracking-widest font-bold text-lg placeholder:tracking-normal placeholder:font-normal placeholder:text-[16px]',

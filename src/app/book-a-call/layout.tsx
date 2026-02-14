@@ -1,11 +1,11 @@
-import Sidebar from '@/components/core/sidebar';
+import SideBar from '@/components/core/sidebar';
 import TopBar from '@/components/core/top-bar';
 import { checkTeamMembersExist } from './actions/checkTeamMembers';
 import SyncOverlay from './_components/SyncOverlay';
 import { redirect } from 'next/navigation';
 import SyncFlowWrapper from './_components/SyncFlowWrapper';
 
-export default async function CommunicationLayout({
+export default async function BookCallLayout({
     children,
 }: {
     children: React.ReactNode;
@@ -18,12 +18,12 @@ export default async function CommunicationLayout({
     const showOverlay = !exists || !success
 
     return (
-        <div className="flex h-screen w-full overflow-hidden bg-(--Primary-800)">
-            <Sidebar />
+        <div className="flex min-h-screen">
+            <SideBar />
             <TopBar />
 
             {/* Main Content Area */}
-            <main className="flex-1 ml-20 pt-28 h-full w-full max-w-[100vw] flex flex-col relative overflow-hidden transition-all duration-300 ease-in-out">
+            <main className="flex-1 h-screen pl-20 pt-[126px] transition-all duration-300 ease-in-out w-full max-w-[100vw] flex flex-col relative overflow-hidden bg-(--Primary-800)">
                 {showOverlay ? (
                     <SyncFlowWrapper masterId={masterId || ''} />
                 ) : (

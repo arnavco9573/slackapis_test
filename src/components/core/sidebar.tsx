@@ -4,24 +4,24 @@ import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useEffect, useState, useRef } from 'react';
 import {
-    LayoutDashboard,
-    ClipboardList,
-    FileText,
-    GraduationCap,
-    Award,
-    MessageSquare,
-    Phone,
     Sun,
     Moon,
-    Bug,
-    Loader2,
-    ExternalLink
 } from 'lucide-react';
-import ReportBugSvg from '../svg/report-bug';
 import PageLoader from '../svg/page-loading';
 import Logo from '../svg/logo';
 import ActiveEllipseSvg from '../svg/active-ellipse';
 import ActiveLineSvg from '../svg/active-line';
+import DashboardNewSvg from '../svg/dashboard-new';
+import TaskManagementIcon from '../svg/task-management-icon';
+import PrimaryChecklistIcon from '../svg/primary-checklist-icon';
+import WlPartnerIcon from '../svg/wl-partner-icon';
+import DocumentCabinetIcon from '../svg/document-cabinet-icon';
+import LearningIcon from '../svg/learning-icon';
+import CertificateIcon from '../svg/certificate-icon';
+import CommunicationIcon from '../svg/communication-icon';
+import BookCallIcon from '../svg/book-call-icon';
+import VanquishLogoSvg from '../svg/vanquish-logo';
+import ReportBugSvg from '../svg/report-bug';
 
 // Custom hook for theme management
 const useTheme = () => {
@@ -97,46 +97,59 @@ export const ThemeButtons = () => {
     );
 };
 
+
 const sidebarStates = [
     {
         id: 'dashboard',
-        icon: LayoutDashboard,
+        icon: DashboardNewSvg,
         name: 'Dashboard',
         path: '/dashboard',
     },
     {
-        id: 'operational-checklist',
-        icon: ClipboardList,
-        name: 'Operational Checklist',
-        path: '/operational-checklist',
+        id: 'task-management',
+        icon: TaskManagementIcon,
+        name: 'Task Management',
+        path: '/task-management',
+    },
+    {
+        id: 'primary-checklist',
+        icon: PrimaryChecklistIcon,
+        name: 'Primary Checklist',
+        path: '/primary-checklist',
+    },
+    {
+        id: 'wl-partner',
+        icon: WlPartnerIcon,
+        name: 'WL Partner',
+        path: '/wl-partner',
     },
     {
         id: 'document-cabinet',
-        icon: FileText,
-        name: 'Document Cabinet',
+        icon: DocumentCabinetIcon,
+        name: 'Document',
         path: '/document-cabinet',
     },
     {
         id: 'learn',
-        icon: GraduationCap,
-        name: 'Learn',
+        icon: LearningIcon,
+        name: 'Learning',
         path: '/learn',
     },
     {
         id: 'certificates',
-        icon: Award,
-        name: 'Certificates',
+        icon: CertificateIcon,
+        name: 'Certificate',
         path: '/certificates',
     },
     {
         id: 'communication',
-        icon: MessageSquare,
+        icon: CommunicationIcon,
         name: 'Communication',
         path: '/communication',
     },
     {
         id: 'book-a-call',
-        icon: Phone,
+        icon: BookCallIcon,
         name: 'Book a call',
         path: '/book-a-call',
     },
@@ -177,8 +190,8 @@ const SideBar = () => {
         <aside
             onMouseLeave={handleMouseLeave}
             className={cn(
-                'bg-[var(--Primary-900)] fixed top-0 left-0 z-41 h-[100svh] max-h-[100svh] w-20 transition-all duration-300 ease-in-out flex flex-col py-8 items-center gap-12  border-container-border-mid50/10 overflow-hidden shadow-xl',
-                isExpanded ? 'w-56 shadow-2xl' : '',
+                'bg-(--Primary-900) fixed top-0 left-0 z-50 h-svh max-h-svh w-20 transition-all duration-300 ease-in-out flex flex-col py-8 items-center gap-6  border-container-border-mid50/10 overflow-hidden shadow-xl',
+                isExpanded ? 'w-56 shadow-2xl' : 'w-24',
                 theme === 'dark' ? 'dark' : 'light'
             )}
         >
@@ -189,14 +202,14 @@ const SideBar = () => {
                     isExpanded ? 'px-6' : 'px-4'
                 )}
             >
-                <Logo className="w-12 h-12 transition-all duration-300" />
+                <VanquishLogoSvg className="w-10 h-10 transition-all duration-300" />
             </div>
 
             <div
                 onMouseEnter={handleMouseEnter}
                 className={cn(
                     'flex flex-col w-full gap-3 transition-all',
-                    isExpanded ? 'items-start px-6' : 'items-center px-3'
+                    isExpanded ? 'items-start px-4' : 'items-center px-3'
                 )}
             >
                 {sidebarStates.map((item) => {
@@ -211,11 +224,14 @@ const SideBar = () => {
                                 }
                             }}
                             className={cn(
-                                'relative py-2 flex min-h-[44px] h-auto tracking-wide items-center rounded-xl transition-all cursor-pointer w-full',
-                                isExpanded ? 'justify-start pl-5 pr-6 gap-2' : 'justify-center',
+                                'relative flex items-center rounded-xl transition-all cursor-pointer w-full group',
+                                isExpanded
+                                    ? 'flex-row justify-start pl-5 pr-6 gap-2 min-h-[44px]'
+                                    : 'flex-col justify-center gap-0 py-2', // flex-col when collapsed
                                 isActive
-                                    ? 'text-cta-text font-semibold'
-                                    : 'text-text-mid font-normal hover:bg-neutral-03/50'
+                                    ? 'font-semibold'
+                                    : 'font-normal hover:bg-neutral-03/50',
+                                !isExpanded && isActive ? 'gap-2' : '' // Gap between icon and text when collapsed & active
                             )}
                             disabled={isLoading === item.id}
                         >
@@ -230,24 +246,47 @@ const SideBar = () => {
                                 </div>
                             )}
 
-                            <div className="relative flex justify-center items-center flex-shrink-0 z-10">
+                            <div className={cn(
+                                "relative flex justify-center items-center shrink-0 z-10 transition-colors duration-300",
+                                isActive ? "text-white" : "text-[#888888] group-hover:text-white"
+                            )}>
                                 {isActive && !isExpanded && (
                                     <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -z-10 pointer-events-none">
                                         <ActiveEllipseSvg />
                                     </div>
                                 )}
-                                <item.icon className="h-5 w-5" />
+                                <item.icon className={cn("transition-all h-5 w-5")} />
                             </div>
 
+                            {/* Label for Collapsed State (Active Only) */}
+                            {!isExpanded && isActive && (
+                                <span
+                                    className="text-[12px] font-normal leading-[16px] text-white text-center animate-in fade-in slide-in-from-top-1 duration-200 z-10"
+                                >
+                                    {item.name}
+                                </span>
+                            )}
+
+                            {/* Label for Expanded State */}
                             <span
                                 className={cn(
-                                    'text-base leading-[18px] break-keep text-left overflow-hidden whitespace-normal transition-all duration-300 delay-150 z-10',
-                                    isExpanded ? 'w-auto opacity-100' : 'w-0 opacity-0'
+                                    'text-base leading-[18px] break-keep text-left overflow-hidden whitespace-nowrap transition-all duration-300 delay-150 z-10',
+                                    isExpanded ? 'w-auto opacity-100' : 'w-0 opacity-0 hidden', // Hide when collapsed to avoid layout issues in flex-col
+                                    isActive ? 'text-white text-[12px] font-normal leading-[16px]' : 'text-text-mid group-hover:text-white'
                                 )}
+                                style={isExpanded ? {
+                                    textAlign: 'center',
+                                    fontSize: '14px',
+                                    fontStyle: 'normal',
+                                    fontWeight: 400,
+                                    lineHeight: '16px',
+                                    ...(isActive ? { color: 'white' } : { color: 'var(--Primary-600, #888)' })
+                                } : {}}
                             >
                                 {item.name}
                             </span>
-                            {isActive && (
+
+                            {isActive && isExpanded && (
                                 <span
                                     className={cn(
                                         'w-20 h-[18px] absolute bg-neutral-50 blur-2xl top-[15px] left-[47px] pointer-events-none transition-opacity',
@@ -262,7 +301,7 @@ const SideBar = () => {
                                         isExpanded ? 'opacity-100' : 'opacity-0'
                                     )}
                                 >
-                                    <PageLoader size={20} />
+                                    <PageLoader size={16} />
                                 </div>
                             )}
                         </button>
@@ -277,52 +316,11 @@ const SideBar = () => {
             >
                 <div
                     className={cn(
-                        'flex items-center transition-all duration-300',
-                        isExpanded ? 'flex-row gap-6' : 'flex-col gap-4'
+                        'flex flex-col items-center w-full transition-all duration-300',
+                        isExpanded ? 'px-6' : 'px-0'
                     )}
                 >
-                    {/* <button
-            onClick={() => toggleTheme('dark')}
-            className={cn(
-              'flex w-7 h-7 p-1 justify-center items-center rounded-full transition-all cursor-pointer border',
-              theme === 'dark'
-                ? 'text-cta-text border-[#636363]'
-                : 'text-text-mid border-transparent hover:text-cta-text/70'
-            )}
-            style={
-              theme === 'dark'
-                ? {
-                  background:
-                    'linear-gradient(0deg, rgba(255, 255, 255, 0.10) -0.21%, rgba(255, 255, 255, 0.00) 105.1%)',
-                }
-                : {}
-            }
-            aria-label="Switch to dark mode"
-          >
-            <MoonSvg className="size-4" />
-          </button> */}
-                    {/* <button
-            onClick={() => toggleTheme('light')}
-            className={cn(
-              'flex w-7 h-7 p-1 justify-center items-center rounded-full transition-all cursor-pointer border',
-              theme === 'light'
-                ? 'text-cta-text border-[#636363]'
-                : 'text-text-mid border-transparent hover:text-cta-text/70'
-            )}
-            style={
-              theme === 'light'
-                ? {
-                  background:
-                    'linear-gradient(0deg, rgba(255, 255, 255, 0.10) -0.21%, rgba(255, 255, 255, 0.00) 105.1%)',
-                }
-                : {}
-            }
-            aria-label="Switch to light mode"
-          >
-            <SunSvg className="size-4" />
-          </button> */}
                 </div>
-
                 <div
                     className={cn(
                         'flex flex-col items-center w-full transition-all duration-300',
@@ -336,26 +334,36 @@ const SideBar = () => {
                         )}
                     />
 
-                    {/* <button
-            onClick={() => router.push('/report-bug')}
-            className={cn(
-              'relative py-2 flex h-11 tracking-wide items-center rounded-xl transition-all cursor-pointer w-full text-text-mid font-normal hover:bg-neutral-03/50',
-              isExpanded ? 'justify-start px-5 gap-2.5' : 'justify-center'
-            )}
-          >
-            <div className="relative flex items-center justify-center flex-shrink-0 z-10">
-              <ReportBugSvg className="h-5 w-5" />
-            </div>
+                    <button
+                        onClick={() => router.push('/report-bug')}
+                        className={cn(
+                            'relative py-2 flex h-11 tracking-wide items-center rounded-xl transition-all cursor-pointer w-full group',
+                            isExpanded ? 'justify-start px-5 gap-2.5' : 'justify-center',
+                            'text-text-mid font-normal hover:bg-neutral-03/50'
+                        )}
+                    >
+                        <div className="relative flex items-center justify-center shrink-0 z-10 text-[#888888] group-hover:text-white transition-colors duration-300">
+                            <ReportBugSvg className="h-5 w-5" />
+                        </div>
 
-            <span
-              className={cn(
-                'text-base leading-[18px] break-keep text-left overflow-hidden whitespace-nowrap transition-all duration-300 delay-150 z-10',
-                isExpanded ? 'w-auto opacity-100' : 'w-0 opacity-0'
-              )}
-            >
-              Report a Bug
-            </span>
-          </button> */}
+                        <span
+                            className={cn(
+                                'text-base leading-[18px] break-keep text-left overflow-hidden whitespace-nowrap transition-all duration-300 delay-150 z-10',
+                                isExpanded ? 'w-auto opacity-100' : 'w-0 opacity-0 hidden',
+                                'text-text-mid group-hover:text-white'
+                            )}
+                            style={isExpanded ? {
+                                textAlign: 'center',
+                                fontSize: '14px',
+                                fontStyle: 'normal',
+                                fontWeight: 400,
+                                lineHeight: '16px',
+                                color: 'var(--Primary-600, #888)'
+                            } : {}}
+                        >
+                            Report a Bug
+                        </span>
+                    </button>
                 </div>
             </div>
         </aside>

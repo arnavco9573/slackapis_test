@@ -141,7 +141,7 @@ export default function BookingSidebar({ bookings, onSelectBooking, selectedRequ
     }, [groupedBookings, activeTab, search])
 
     return (
-        <div className="w-[400px] shrink-0 bg-card flex flex-col p-4 h-full mt-4">
+        <div className="w-[400px] shrink-0 bg-card flex flex-col p-4 h-full pl-6.5">
             <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between mb-2">
                     <h1 className="text-2xl font-normal text-white">Call Request</h1>

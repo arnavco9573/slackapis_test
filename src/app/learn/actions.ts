@@ -119,10 +119,13 @@ export async function getBlogs(params: {
         let blogs = json.data || []
 
         if (status === 'draft') {
-            blogs = blogs.filter((blog: any) => blog.blog_status === 'draft')
+            blogs = blogs.filter((blog: any) => blog.blog_status?.toLowerCase() === 'draft')
         } else if (status === 'published') {
-            // Include items with blog_status='published' OR items without blog_status (backward compatibility)
-            blogs = blogs.filter((blog: any) => blog.blog_status === 'published' || !blog.blog_status)
+            // Include items with blog_status='published' OR items without blog_status but with publishedAt (backward compatibility)
+            blogs = blogs.filter((blog: any) =>
+                blog.blog_status?.toLowerCase() === 'published' ||
+                (!blog.blog_status && blog.publishedAt)
+            )
         }
 
         console.log('--- STRAPI DEBUG: getBlogs ---')
